@@ -43,20 +43,20 @@ add chain=forward action=drop comment="forward: drop the rest"
 ####IPv6
 
 /ipv6 firewall filter
-# --- INPUT (Защита роутера) ---
+### --- INPUT (Защита роутера) ---
 add chain=input action=accept connection-state=established,related comment="ipv6 input: allow established,related"
 add chain=input action=drop connection-state=invalid comment="ipv6 input: drop invalid"
 add chain=input action=accept in-interface-list=LAN comment="ipv6 input: allow from LAN"
 add chain=input action=accept protocol=icmpv6 in-interface-list=WAN comment="ipv6 input: allow ICMPv6 from WAN (необходим для работы IPv6)"
 add chain=input action=drop in-interface-list=WAN comment="ipv6 input: drop all other from WAN"
 
-# --- FORWARD ---
+### --- FORWARD ---
 add chain=forward action=accept connection-state=established,related comment="ipv6 forward: allow established,related"
 add chain=forward action=drop connection-state=invalid comment="ipv6 forward: drop invalid"
 
-# Аналогично ваши VLAN правила (если используете IPv6 в VLAN)
+### Аналогично ваши VLAN правила (если используете IPv6 в VLAN)
 add chain=forward action=accept src-address=2001:db8:20::/64 comment="allow Admin to all VLANs (IPv6)"
-# ... и так далее
+### ... и так далее
 
 add chain=forward action=accept in-interface-list=LAN out-interface-list=WAN comment="ipv6 forward: allow LAN to WAN"
 add chain=forward action=drop in-interface-list=WAN connection-state=new comment="ipv6 forward: drop new from WAN"
