@@ -1,6 +1,6 @@
 # mikrotik
 ## 2 версия
- вот моя итоговая схема :
+### вот моя итоговая схема :
 /ip firewall filter 
 
 add chain=forward action=fasttrack-connection connection-state=established,related comment="!!! FASTTRACK TURBO !!!" place-before=0 
@@ -13,26 +13,26 @@ add chain=input action=accept in-interface-list=LAN comment="input: allow from L
 add chain=input action=accept protocol=icmp in-interface-list=WAN comment="input: allow ICMP from WAN" 
 add chain=input action=drop in-interface-list=WAN comment="input: drop all other from WAN"
 
-# --- FORWARD (Межсетевой экран) ---
-# Шаг 1: Пропуск уже установленных соединений (ускоряет работу)
+### --- FORWARD (Межсетевой экран) ---
+### Шаг 1: Пропуск уже установленных соединений (ускоряет работу)
 add chain=forward action=accept connection-state=established,related comment="forward: allow established,related"
 add chain=forward action=drop connection-state=invalid comment="forward: drop invalid"
 
-# Шаг 2: БЕЗОПАСНОСТЬ VLAN (ПЕРЕНЕСЕНО ВЫШЕ, ДО РАЗРЕШЕНИЯ ИНТЕРНЕТА)
-# Разрешить Админу ходить в любые VLAN (включая Servers и Home)
+### Шаг 2: БЕЗОПАСНОСТЬ VLAN (ПЕРЕНЕСЕНО ВЫШЕ, ДО РАЗРЕШЕНИЯ ИНТЕРНЕТА)
+### Разрешить Админу ходить в любые VLAN (включая Servers и Home)
 add chain=forward action=accept src-address=192.168.20.0/24 comment="allow Admin to all VLANs"
 
-# Запретить Home и Servers ходить друг к другу
+### Запретить Home и Servers ходить друг к другу
 add chain=forward action=drop src-address=192.168.40.0/24 dst-address=192.168.30.0/24 comment="isolate Home from Servers"
 add chain=forward action=drop src-address=192.168.30.0/24 dst-address=192.168.40.0/24 comment="isolate Servers from Home"
 
-# Шаг 3: Разрешить ВСЕМ (кто не попал под запрет выше) выходить в Интернет (WAN)
+### Шаг 3: Разрешить ВСЕМ (кто не попал под запрет выше) выходить в Интернет (WAN)
 add chain=forward action=accept in-interface-list=LAN out-interface-list=WAN comment="forward: allow LAN to WAN (internet)"
 
-# Шаг 4: Защита от вторжений с WAN (новые подключения извне)
+### Шаг 4: Защита от вторжений с WAN (новые подключения извне)
 add chain=forward action=drop in-interface-list=WAN connection-state=new comment="forward: drop new from WAN"
 
-# Шаг 5: Финальный запрет для всего, что не подошло (страховка)
+### Шаг 5: Финальный запрет для всего, что не подошло (страховка)
 add chain=forward action=drop comment="forward: drop the rest"
 
 
