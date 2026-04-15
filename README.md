@@ -1,6 +1,9 @@
 # mikrotik
 ## 2 версия
 ### вот моя итоговая схема :
+
+#### IPv4
+
 /ip firewall filter 
 
 add chain=forward action=fasttrack-connection connection-state=established,related comment="!!! FASTTRACK TURBO !!!" place-before=0 
@@ -37,7 +40,7 @@ add chain=forward action=drop comment="forward: drop the rest"
 
 
 
-
+####IPv6
 
 /ipv6 firewall filter
 # --- INPUT (Защита роутера) ---
@@ -58,4 +61,3 @@ add chain=forward action=accept src-address=2001:db8:20::/64 comment="allow Admi
 add chain=forward action=accept in-interface-list=LAN out-interface-list=WAN comment="ipv6 forward: allow LAN to WAN"
 add chain=forward action=drop in-interface-list=WAN connection-state=new comment="ipv6 forward: drop new from WAN"
 add chain=forward action=drop comment="ipv6 forward: drop the rest"
-
