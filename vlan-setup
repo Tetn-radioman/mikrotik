@@ -1,7 +1,136 @@
 # VLAN Setup Script
+Для настройки VLAN на RouterOS версии 7 под WinBox необходимо использовать **Bridge VLAN Filtering** — это наиболее гибкий и рекомендуемый метод. Принцип работы схож с управляемыми коммутаторами: вы создаёте общий бридж, назначаете в него порты, а затем с помощью правил указываете, какие порты являются **Trunk** (тегированный трафик), а какие **Access** (нетегированный).
+
+Ниже приведены два набора команд: базовая версия для быстрой настройки доступа к интернету и расширенная версия с комментариями и правилами безопасности.
+
+### 🚀 Базовый набор команд (Интернет + 2 VLAN)
+Предположим, что `ether1` — это Trunk порт (или WAN), а `ether2` (VLAN 10) и `ether3` (VLAN 20) — Access порты для клиентов .
+
+**1. Создание бриджа и настройка портов**
+```ros
 /interface bridge
-add name=bridge-vlan
-/interface vlan
-add interface=ether2 name=vlan10 vlan-id=10
+add name=bridge1 vlan-filtering=yes frame-types=admit-only-vlan-tagged
+
 /interface bridge port
-add bridge=bridge-vlan interface=ether2
+add bridge=bridge1 interface=ether1 frame-types=admit-only-vlan-tagged
+add bridge=bridge1 interface=ether2 pvid=10 frame-types=admit-only-untagged-and-priority-tagged
+add bridge=bridge1 interface=ether3 pvid=20 frame-types=admit-only-untagged-and-priority-tagged
+```
+
+**2. Настройка VLAN таблицы в бридже**
+```ros
+/interface bridge vlan
+add bridge=bridge1 tagged=ether1 untagged=ether2 vlan-ids=10
+add bridge=bridge1 tagged=ether1 untagged=ether3 vlan-ids=20
+```
+
+**3. Создание интерфейсов VLAN (для маршрутизации)**
+```ros
+/interface vlan
+add interface=bridge1 name=vlan10 vlan-id=10
+add interface=bridge1 name=vlan20 vlan-id=20
+```
+
+**4. Назначение IP-адресов и настройка DHCP-сервера**
+```ros
+/ip address
+add address=192.168.10.1/24 interface=vlan10
+add address=192.168.20.1/24 interface=vlan20
+
+/ip pool
+add name=pool_vlan10 ranges=192.168.10.100-192.168.10.200
+add name=pool_vlan20 ranges=192.168.20.100-192.168.20.200
+
+/ip dhcp-server
+add address-pool=pool_vlan10 interface=vlan10 name=dhcp_vlan10 disabled=no
+add address-pool=pool_vlan20 interface=vlan20 name=dhcp_vlan20 disabled=no
+
+/ip dhcp-server network
+add address=192.168.10.0/24 gateway=192.168.10.1 dns-server=8.8.8.8
+add address=192.168.20.0/24 gateway=192.168.20.1 dns-server=8.8.8.8
+```
+
+**5. Настройка NAT (для доступа в интернет)**
+*Примечание: `ether1` в примере ниже является WAN портом, замените на свой.*
+```ros
+/ip firewall nat
+add chain=srcnat out-interface=ether1 action=masquerade
+```
+
+---
+
+### 🛡️ Расширенный вариант (С изоляцией и безопасностью)
+Этот вариант более приближен к реальной эксплуатации. Здесь добавлены рекомендации по изоляции трафика и защите самого роутера .
+
+**1. Бридж с усиленной безопасностью (ARP)**
+```ros
+/interface bridge
+add arp=reply-only arp-timeout=30s frame-types=admit-only-vlan-tagged name=bridge1 vlan-filtering=yes
+```
+
+**2. Порты (аналогично базовому варианту)**
+```ros
+/interface bridge port
+add bridge=bridge1 frame-types=admit-only-vlan-tagged interface=ether1
+add bridge=bridge1 frame-types=admit-only-untagged-and-priority-tagged interface=ether2 pvid=10
+add bridge=bridge1 frame-types=admit-only-untagged-and-priority-tagged interface=ether3 pvid=20
+```
+
+**3. VLANs (Добавляем Bridge в tagged для управления)**
+```ros
+/interface bridge vlan
+add bridge=bridge1 tagged=bridge1,ether1 untagged=ether2 vlan-ids=10
+add bridge=bridge1 tagged=ether1 untagged=ether3 vlan-ids=20
+add bridge=bridge1 tagged=bridge1,ether1 vlan-ids=99 # Управляющий VLAN
+```
+
+**4. Интерфейсы и адреса**
+```ros
+/interface vlan
+add interface=bridge1 name=vlan10 vlan-id=10
+add interface=bridge1 name=vlan20 vlan-id=20
+add interface=bridge1 name=vlan99-mgmt vlan-id=99
+
+/ip address
+add address=192.168.10.1/24 interface=vlan10
+add address=192.168.20.1/24 interface=vlan20
+add address=192.168.99.1/24 interface=vlan99-mgmt
+```
+
+**5. DHCP и пуллы (аналогично базовому)**
+
+**6. Безопасность: Защита роутера (WinBox/SSH)**
+```ros
+/interface list
+add name=mgmt-zone
+
+/interface list member
+add interface=vlan99-mgmt list=mgmt-zone
+
+/ip firewall filter
+add action=accept chain=input comment="Allow WinBox/SSH from Mgmt" connection-state=new dst-port=22,8291 in-interface-list=mgmt-zone protocol=tcp
+add action=reject chain=input comment="Reject all other access to router" connection-state=new dst-port=22,8291 in-interface-list=!mgmt-zone protocol=tcp reject-with=tcp-reset
+```
+
+**7. Безопасность: Изоляция VLAN между собой**
+```ros
+/ip firewall filter
+add action=drop chain=forward comment="Isolate VLAN10 from VLAN20" in-interface=vlan10 out-interface=vlan20
+add action=drop chain=forward comment="Isolate VLAN20 from VLAN10" in-interface=vlan20 out-interface=vlan10
+```
+
+### 💡 Важные замечания по настройке в WinBox
+*   **Активация фильтрации:** Не забудьте включить параметр `vlan-filtering=yes` на вкладке **Bridge → VLANs**, иначе VLAN не будут работать .
+*   **Frame Types:** Значения `admit-only-vlan-tagged` (Trunk) и `admit-only-untagged-and-priority-tagged` (Access) критически важны в RouterOS v7 для корректной обработки тегов и производительности .
+*   **PVID:** При настройке Access-порта в WinBox это поле называется **PVID**. Убедитесь, что оно равно вашему VLAN ID .
+
+### 💎 Альтернативный вариант: "Router-on-a-stick"
+Если ваш MikroTik используется сугубо как маршрутизатор (не нужно объединять порты в коммутатор), можно не создавать Bridge, а вешать VLAN-интерфейсы прямо на физический порт. Это аналог саб-интерфейсов Cisco, упрощает конфигурацию и снижает нагрузку .
+```ros
+/interface vlan
+add interface=ether5 name=vlan10 vlan-id=10
+add interface=ether5 name=vlan20 vlan-id=20
+/ip address
+add address=192.168.10.1/24 interface=vlan10
+add address=192.168.20.1/24 interface=vlan20
+```
