@@ -8,10 +8,10 @@
 
 \/ip arp remove [find mac-address=XX:XX:XX:XX:XX:XX]
 
-```markdown
+
 ## Мониторинг и статус (смотреть, что происходит)
 
-
+```markdown
 ### Железо
 /system resource print     # Загрузка CPU, свободная память, аптайм
 /system health print       # Температура и вольтаж (если есть сенсоры)
