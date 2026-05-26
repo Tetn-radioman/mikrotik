@@ -30,7 +30,7 @@
 ### Wi-Fi (если есть)
 /interface wireless registration-table print  # Список подключенных клиентов и уровень сигнала
 
-### DHCP Leases (кто в сети) # список динамических подключений в сети
+### DHCP Leases (кто в сети)
 
-/ip dhcp-server lease print where dynamic
+/ip dhcp-server lease print where dynamic # список динамических подключений в сети
 ```
